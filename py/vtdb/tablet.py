@@ -95,7 +95,7 @@ class TabletConnection(object):
 
       self.client.dial()
       params = {'Keyspace': self.keyspace, 'Shard': self.shard}
-      response = self.client.call('SqlQuery.GetSessionId', params)
+      response = self.rpc_call_and_extract_error('SqlQuery.GetSessionId', params)
       self.session_id = response.reply['SessionId']
     except gorpc.GoRpcError as e:
       raise convert_exception(e, str(self))
@@ -121,7 +121,7 @@ class TabletConnection(object):
       raise dbexceptions.NotSupportedError('Nested transactions not supported')
     req = self._make_req()
     try:
-      response = self.client.call('SqlQuery.Begin', req)
+      response = self.rpc_call_and_extract_error('SqlQuery.Begin', req)
       self.transaction_id = response.reply['TransactionId']
     except gorpc.GoRpcError as e:
       raise convert_exception(e, str(self))
@@ -139,7 +139,7 @@ class TabletConnection(object):
     self.transaction_id = 0
 
     try:
-      response = self.client.call('SqlQuery.Commit', req)
+      response = self.rpc_call_and_extract_error('SqlQuery.Commit', req)
       return response.reply
     except gorpc.GoRpcError as e:
       raise convert_exception(e, str(self))
@@ -156,13 +156,13 @@ class TabletConnection(object):
     self.transaction_id = 0
 
     try:
-      response = self.client.call('SqlQuery.Rollback', req)
+      response = self.rpc_call_and_extract_error('SqlQuery.Rollback', req)
       return response.reply
     except gorpc.GoRpcError as e:
       raise convert_exception(e, str(self))
 
   def rpc_call_and_extract_error(self, method_name, request):
-    """Makes an RPC call, and extracts any app error that's embedded in the reply. 
+    """Makes an RPC call, and extracts any app error that's embedded in the reply.
 
     Args:
       method_name - RPC method name, as a string, to call
@@ -173,7 +173,7 @@ class TabletConnection(object):
     """
     response = self.client.call(method_name, request)
     reply = response.reply
-    if reply['Err']['Code'] or reply['Err']['Message']:
+    if reply['Err']:
       raise gorpc.AppError(reply['Err']['Message'], method_name)
     return response
 
@@ -220,7 +220,7 @@ class TabletConnection(object):
     try:
       req = self._make_req()
       req['Queries'] = query_list
-      response = self.client.call('SqlQuery.ExecuteBatch', req)
+      response = self.rpc_call_and_extract_error('SqlQuery.ExecuteBatch', req)
       for reply in response.reply['List']:
         fields = []
         conversions = []
